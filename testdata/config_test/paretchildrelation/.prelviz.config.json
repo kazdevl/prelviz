@@ -1,0 +1,13 @@
+{
+    "ng_relation": [
+        {
+            "from": "sample1",
+            "to": ["sample2","sample3"]
+        },
+        {
+            "from": "sample2",
+            "to": ["sample3"]
+        }
+    ],
+    "grouping_directory_path": ["app/sample", "app/hogehoe", "app"]
+}

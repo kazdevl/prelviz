@@ -1,0 +1,14 @@
+run:
+  skip-dirs:
+    - testdata
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - varcheck
+    - misspell
+    - gofumpt

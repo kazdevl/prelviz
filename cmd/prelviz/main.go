@@ -23,11 +23,11 @@ func main() {
 		log.Fatal("project directory path is required")
 	}
 
-	relviz, err := prelviz.NewRelviz(projectDirectoryPath, outputFilePath, dotLayout)
+	prelviz, err := prelviz.NewPrelviz(projectDirectoryPath, outputFilePath, dotLayout)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err = relviz.Run(); err != nil {
+	if err = prelviz.Run(); err != nil {
 		log.Fatal(err)
 	}
 }

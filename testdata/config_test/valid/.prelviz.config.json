@@ -9,5 +9,6 @@
             "to": ["sample3"]
         }
     ],
-    "grouping_directory_path": ["sample4", "sample5", "sample6"]
+    "grouping_directory_path": ["sample4", "sample5", "sample6"],
+    "exclude_package": ["sample7", "sample8", "sample9"]
 }

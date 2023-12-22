@@ -27,7 +27,8 @@ func NewPackageInfoMap(projectDirectoryPath string) (map[string]*PackageInfo, er
 
 	packageInfoMap := make(map[string]*PackageInfo)
 	for _, filePath := range filePaths {
-		packageInfo, err := NewPackageInfo(filePath, projectDirectoryPath)
+		var packageInfo *PackageInfo
+		packageInfo, err = NewPackageInfo(filePath, projectDirectoryPath)
 		if err != nil {
 			return nil, err
 		}
@@ -64,8 +65,9 @@ func NewPackageInfo(filePath, projectDirectoryPath string) (*PackageInfo, error)
 			if !ok {
 				return true
 			}
-			if importPath, ok := importUsageNameMap[xIndent.Name]; ok {
-				if _, ok := importUsageMap[importPath]; ok {
+			var importPath string
+			if importPath, ok = importUsageNameMap[xIndent.Name]; ok {
+				if _, ok = importUsageMap[importPath]; ok {
 					importUsageMap[importPath][x.Sel.Name] = struct{}{}
 				} else {
 					importUsageMap[importPath] = map[string]struct{}{x.Sel.Name: {}}

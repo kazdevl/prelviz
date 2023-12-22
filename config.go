@@ -2,7 +2,6 @@ package prelviz
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,9 +10,16 @@ import (
 	"github.com/samber/lo"
 )
 
-type Config struct {
+type ConfigBinder struct {
 	NgRelations            []NgRelation `json:"ng_relation"`
 	GroupingDirectoryPaths []string     `json:"grouping_directory_path"`
+	ExcludePackages        []string     `json:"exclude_package"`
+}
+
+type Config struct {
+	NgRelationMap          map[string]map[string]struct{}
+	GroupingDirectoryPaths []string
+	ExcludePackageMap      map[string]struct{}
 }
 
 type NgRelation struct {
@@ -21,45 +27,83 @@ type NgRelation struct {
 	To   []string `json:"to"`
 }
 
-type NgPackageRelationMap map[string]map[string]struct{}
+const configJsonName = ".prelviz.config.json"
 
 func NewConfig(path string) (*Config, error) {
-	filePath := filepath.Join(path, ".prelviz.config.json")
+	filePath := filepath.Join(path, configJsonName)
 	if !fileExists(filePath) {
-		return nil, nil
+		return &Config{
+			NgRelationMap:          make(map[string]map[string]struct{}),
+			GroupingDirectoryPaths: make([]string, 0),
+			ExcludePackageMap:      make(map[string]struct{}),
+		}, nil
 	}
 
-	var c Config
+	var cb ConfigBinder
 	raw, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	if err = json.Unmarshal(raw, &c); err != nil {
+	if err = json.Unmarshal(raw, &cb); err != nil {
 		return nil, err
 	}
-	if c.GroupingDirectoryPaths == nil {
-		return &c, nil
+
+	c, err := cb.ToConfig()
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (c ConfigBinder) ToConfig() (*Config, error) {
+	conf := &Config{
+		NgRelationMap:          make(map[string]map[string]struct{}),
+		GroupingDirectoryPaths: make([]string, 0),
+		ExcludePackageMap:      make(map[string]struct{}),
 	}
 
-	duplicate := lo.FindDuplicates(c.GroupingDirectoryPaths)
-	if len(duplicate) > 0 {
-		return nil, errors.New("duplicate grouping directory path")
-	}
-
-	for _, groupDirPath := range c.GroupingDirectoryPaths {
-		if groupDirPath == "" {
-			continue
-		}
-		if _, ok := lo.Find(c.GroupingDirectoryPaths, func(s string) bool {
-			if s == groupDirPath {
-				return false
+	if c.NgRelations != nil {
+		m := make(map[string]map[string]struct{})
+		for _, ngRelation := range c.NgRelations {
+			if _, ok := m[ngRelation.From]; !ok {
+				m[ngRelation.From] = make(map[string]struct{})
 			}
-			return strings.HasPrefix(s, groupDirPath)
-		}); ok {
-			return nil, fmt.Errorf("don't set parent-child relationships. %s", groupDirPath)
+			for _, to := range ngRelation.To {
+				m[ngRelation.From][to] = struct{}{}
+			}
 		}
+		conf.NgRelationMap = m
 	}
-	return &c, nil
+
+	if c.ExcludePackages != nil {
+		m := make(map[string]struct{})
+		for _, excludePackage := range c.ExcludePackages {
+			if excludePackage == "" {
+				continue
+			}
+			m[excludePackage] = struct{}{}
+		}
+		conf.ExcludePackageMap = m
+	}
+
+	if c.GroupingDirectoryPaths != nil {
+		for _, groupDirPath := range c.GroupingDirectoryPaths {
+			if groupDirPath == "" {
+				continue
+			}
+			if _, ok := lo.Find(c.GroupingDirectoryPaths, func(s string) bool {
+				if s == groupDirPath {
+					return false
+				}
+				return strings.HasPrefix(s, groupDirPath)
+			}); ok {
+				return nil, fmt.Errorf("don't set parent-child relationships. %s", groupDirPath)
+			}
+		}
+		conf.GroupingDirectoryPaths = lo.Uniq(c.GroupingDirectoryPaths)
+	}
+
+	return conf, nil
 }
 
 func (c *Config) IsGroupingPackage(pkgDirPath string) bool {
@@ -75,10 +119,6 @@ func (c *Config) IsGroupingPackage(pkgDirPath string) bool {
 }
 
 func (c *Config) GroupingPackageDirectoryPath(pkgDirPath string) string {
-	if c.GroupingDirectoryPaths == nil {
-		return pkgDirPath
-	}
-
 	for _, groupDirPath := range c.GroupingDirectoryPaths {
 		if groupDirPath == "" {
 			continue
@@ -90,28 +130,18 @@ func (c *Config) GroupingPackageDirectoryPath(pkgDirPath string) string {
 	return pkgDirPath
 }
 
-func (c *Config) ToNgPackageRelationMap() NgPackageRelationMap {
-	if c.NgRelations == nil {
-		return nil
+func (c *Config) IsExcludePackage(pkg string) bool {
+	if _, ok := c.ExcludePackageMap[pkg]; ok {
+		return true
 	}
-
-	ngRelationMap := make(NgPackageRelationMap)
-	for _, ngRelation := range c.NgRelations {
-		if _, ok := ngRelationMap[ngRelation.From]; !ok {
-			ngRelationMap[ngRelation.From] = make(map[string]struct{})
-		}
-		for _, to := range ngRelation.To {
-			ngRelationMap[ngRelation.From][to] = struct{}{}
-		}
-	}
-	return ngRelationMap
+	return false
 }
 
-func (n NgPackageRelationMap) IsNgRelation(from string, to string) bool {
-	if _, ok := n[from]; !ok {
+func (c *Config) IsNgRelation(from string, to string) bool {
+	if _, ok := c.NgRelationMap[from]; !ok {
 		return false
 	}
-	if _, ok := n[from][to]; !ok {
+	if _, ok := c.NgRelationMap[from][to]; !ok {
 		return false
 	}
 	return true

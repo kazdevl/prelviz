@@ -1,9 +1,9 @@
 {
-    "ng_relation": [
-        {
-            "from": "github.com/kazdevl/sample_project/app/usecase",
-            "to": ["github.com/kazdevl/sample_project/app/domain"]
-        }
-    ],
-    "grouping_directory_path": ["app/domain"]
+  "ng_relation": [
+    {
+      "from": "github.com/kazdevl/sample_project/app/usecase",
+      "to": ["github.com/kazdevl/sample_project/app/domain"]
+    }
+  ],
+  "grouping_directory_path": ["app/domain"]
 }

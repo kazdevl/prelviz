@@ -37,6 +37,7 @@ If you want to use `prelviz` with config, you need to create `.prelviz.config.js
 `.prelviz.config.json` have three fields, `ng_relation`, `grouping_grouping_directory_path` and `exclude_package`.
 
 example)
+
 ```json
 {
   "ng_relation": [
@@ -58,24 +59,28 @@ When you set `from` and `to` value, you have to set package path.
 If `prelviz` detects architecture violation, the color of edges between the target packages turns red.
 
 example)
+
 ![png](images/2.png)
 
 You can set `grouping_directory_path` when you want to **group packages in the result image of `prelviz`**.
 When you set `grouping_directory_path` value, you have to set directory path.
 
 example)
+
 ![png](images/3.png)
 
-Ypu can set `exclude_package` when you want to **exclude packages in the result image of `prelviz`**.
+You can set `exclude_package` when you want to **exclude packages in the result image of `prelviz`**.
 When you set `exclude_package` value, you have to set package path.
 
 example)
+
 ![png](images/5.png)
 
 ### Point
 The values in `grouping_directory_path` are treated as package, so it must also be considered when setting `ng_relation`.
 
 example)
+
 the sample go project
 - module name: `github.com/kazdevl/sample_project`
 - package list

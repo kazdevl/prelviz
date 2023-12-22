@@ -20,10 +20,10 @@ type Prelviz struct {
 }
 
 type NodeInfo struct {
-	Name                  string
-	DirectoryPath         string
-	groupingDirectoryPath string
-	ContainsPackageNum    int
+	Name               string
+	DirectoryPath      string
+	IsGrouping         bool
+	ContainsPackageNum int
 }
 
 func NewPrelviz(projectDirectoryPath, outputFilePath, dotLayout string) (*Prelviz, error) {
@@ -82,6 +82,7 @@ func (m *Prelviz) Run() error {
 			"style":       `"solid,filled"`,
 			"fontcolor":   "6",
 			"fontsize":    "14",
+			"color":       "7",
 			"colorscheme": `"spectral11"`,
 		}
 	)
@@ -98,7 +99,7 @@ func (m *Prelviz) Run() error {
 
 	// add node
 	for nodeName, info := range m.nodeInfoMap() {
-		if info.isGroupingNode() {
+		if info.IsGrouping {
 			if graph.IsNode(nodeName) {
 				continue
 			}
@@ -106,7 +107,7 @@ func (m *Prelviz) Run() error {
 				nodeDefaultAttrs,
 				map[string]string{
 					"fillcolor": "9",
-					"label":     fmt.Sprintf(`"{path: %s|pkgNum: %d}"`, info.DirectoryPath, info.ContainsPackageNum),
+					"label":     fmt.Sprintf(`"{path: %s|pkg: %d}"`, info.DirectoryPath, info.ContainsPackageNum),
 				},
 			)); err != nil {
 				return err
@@ -157,10 +158,40 @@ func (m *Prelviz) Run() error {
 	return nil
 }
 
+func (m *Prelviz) nodeInfoMap() map[string]*NodeInfo {
+	nodeInfoMap := make(map[string]*NodeInfo)
+	for pkgDirPath, info := range m.packageInfoMap {
+		if m.isExcludePackageWithDirPath(pkgDirPath) {
+			continue
+		}
+
+		nodeName := m.nodeName(pkgDirPath)
+		if _, ok := nodeInfoMap[nodeName]; ok {
+			nodeInfoMap[nodeName].ContainsPackageNum++
+		} else {
+			if m.isGroupingNode(pkgDirPath) {
+				nodeInfoMap[nodeName] = &NodeInfo{
+					DirectoryPath:      m.groupingPackageDirectoryPath(pkgDirPath),
+					IsGrouping:         true,
+					ContainsPackageNum: 1,
+				}
+			} else {
+				nodeInfoMap[nodeName] = &NodeInfo{
+					Name:               info.Name,
+					DirectoryPath:      pkgDirPath,
+					IsGrouping:         false,
+					ContainsPackageNum: 1,
+				}
+			}
+		}
+	}
+	return nodeInfoMap
+}
+
 func (m *Prelviz) nodeRelationCountMap() map[string]map[string]int {
 	nodeRelationCountMap := make(map[string]map[string]int)
 	for pkgDirPath, info := range m.packageInfoMap {
-		if m.isExcludePackage(pkgDirPath) {
+		if m.isExcludePackageWithDirPath(pkgDirPath) {
 			continue
 		}
 
@@ -174,6 +205,10 @@ func (m *Prelviz) nodeRelationCountMap() map[string]map[string]int {
 				continue
 			}
 
+			if m.isExcludePackage(importPath) {
+				continue
+			}
+
 			if _, ok := nodeRelationCountMap[nodeName]; !ok {
 				nodeRelationCountMap[nodeName] = map[string]int{
 					importPathNodeName: len(usageMap),
@@ -184,26 +219,6 @@ func (m *Prelviz) nodeRelationCountMap() map[string]map[string]int {
 		}
 	}
 	return nodeRelationCountMap
-}
-
-func (m *Prelviz) nodeInfoMap() map[string]*NodeInfo {
-	nodeInfoMap := make(map[string]*NodeInfo)
-	for pkgDirPath, info := range m.packageInfoMap {
-		if m.isExcludePackage(pkgDirPath) {
-			continue
-		}
-
-		nodeName := m.nodeName(pkgDirPath)
-		if _, ok := nodeInfoMap[nodeName]; ok {
-			nodeInfoMap[nodeName].ContainsPackageNum++
-		} else {
-			nodeInfoMap[nodeName] = &NodeInfo{
-				Name:          info.Name,
-				DirectoryPath: m.groupingPackageDirectoryPath(pkgDirPath),
-			}
-		}
-	}
-	return nodeInfoMap
 }
 
 func (m *Prelviz) importPathNodeName(importPath string) string {
@@ -244,11 +259,11 @@ func (m *Prelviz) isNgRelation(from, to string) bool {
 	return m.config.IsNgRelation(from, to)
 }
 
-func (m *Prelviz) isExcludePackage(pkgDirPath string) bool {
-	pkg := filepath.Join(m.projectModuleName, pkgDirPath)
+func (m *Prelviz) isExcludePackage(pkg string) bool {
 	return m.config.IsExcludePackage(pkg)
 }
 
-func (m *NodeInfo) isGroupingNode() bool {
-	return m.ContainsPackageNum > 0
+func (m *Prelviz) isExcludePackageWithDirPath(pkgDirPath string) bool {
+	pkg := filepath.Join(m.projectModuleName, pkgDirPath)
+	return m.config.IsExcludePackage(pkg)
 }

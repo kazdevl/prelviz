@@ -1,30 +1,28 @@
 # prelviz
-A vizualization tool for self custom package relation by creating dot format file.
+A **visualization tool** for **self custom package** relation by creating dot format file.
 This tool help you to understand self custom package relation and maintain project architecture.
 
-### example1 with graphviz
 ![png](images/1.png)
-- `pkg` in node indicates package name
-- `path` in node indicates directory path that package exists
-- `dep` indicates number of dependencies on structures, functions, etc. of the package to which the arrow points
-
-### example2 with graphviz
-![png](images/2.png)
-- red edge color indicates architecture violation that you define
-
-### example3 with graphviz
-![png](images/3.png)
-- folder format node indicates grouping packages
+※ above image is the result of using `prelviz` to `testdata/sample_project` without config.
 
 ## Install
 
 You can get `prelviz` by `go install` command.
 
 ```bash
-$ go install github.com/kazdevl/prelviz/cmd/prelviz@{{version}}
+$ go install github.com/kazdevl/prelviz/cmd/prelviz@v0.0.2
 ```
+NOTE: you need go 1.21 or later.
 
 ## How to use
+```bash
+$ prelviz -i {{project directory path}}
+```
+
+```bash
+$ prelviz -i {{project directory path}} -l {{dot layout}}
+```
+
 ```bash
 $ prelviz -i {{project directory path}} -o {{output file path}}
 ```
@@ -34,36 +32,58 @@ $ prelviz -i {{project directory path}} | dot -Tpng -o sample.png
 ```
 NOTE: if you want to exec above usage, you need to install [graphviz](https://www.graphviz.org/).
 
-If you want to detect architecture violation, you can set not good package relation with `.prelviz.config.json` in project directory path.
-You can define `ng_relation`.
-`ng_relation` has `from` and `to` fields that indicate not good package relations.
-If `prelviz` detects architecture violation, the color of edges between the target packages turns red.
+### Use with config
+If you want to use `prelviz` with config, you need to create `.prelviz.config.json` in project directory path.
+`.prelviz.config.json` have three fields, `ng_relation`, `grouping_grouping_directory_path` and `exclude_package`.
 
+example)
 ```json
 {
-    "ng_relation": [
-        {
-            "from": "github.com/kazdevl/sample_project/app/usecase",
-            "to": ["github.com/kazdevl/sample_project/app/domain/model"]
-        }
-    ],
+  "ng_relation": [
+    {
+      "from": "github.com/kazdevl/sample_project/app/usecase",
+      "to": ["github.com/kazdevl/sample_project/app/domain"]
+    }
+  ],
+  "grouping_directory_path": ["app/domain"], 
+  "exclude_package": [
+    "github.com/kazdevl/sample_project/app/util",
+    "github.com/kazdevl/sample_project/app/domain/entity"
+  ]
 }
 ```
 
-### Recomendation Config
-If you want to use `prelviz` to the go project that have a lot of packages, you should set `grouping_directory_path` up in `.prelviz.config.json`.
-`grouping_directory_path` has string array fields that indicate grouping packages with input `directory_path`.
-Packages under the `directory_path` set in `grouping_directory_path` are grouped together as nodes in the dot language folder format.
+You can set `from` and `to` value in `ng_relation` when you want to **detect dependencies that violate the project's architecture**.
+When you set `from` and `to` value, you have to set package path.
+If `prelviz` detects architecture violation, the color of edges between the target packages turns red.
+
+example)
+![png](images/2.png)
+
+You can set `grouping_directory_path` when you want to **group packages in the result image of `prelviz`**.
+When you set `grouping_directory_path` value, you have to set directory path.
+
+example)
+![png](images/3.png)
+
+Ypu can set `exclude_package` when you want to **exclude packages in the result image of `prelviz`**.
+When you set `exclude_package` value, you have to set package path.
+
+example)
+![png](images/5.png)
+
+### Point
+The values in `grouping_directory_path` are treated as package, so it must also be considered when setting `ng_relation`.
 
 example)
 the sample go project
 - module name: `github.com/kazdevl/sample_project`
 - package list
-    - `github.com/kazdevl/sample_project/app/usecase`
-    - `github.com/kazdevl/sample_project/app/domain/service`
-    - `github.com/kazdevl/sample_project/app/domain/repository`
-    - `github.com/kazdevl/sample_project/app/domain/entity`
-    - `github.com/kazdevl/sample_project/app/domain/model`
+  - `github.com/kazdevl/sample_project/app/usecase`
+  - `github.com/kazdevl/sample_project/app/domain/service`
+  - `github.com/kazdevl/sample_project/app/domain/repository`
+  - `github.com/kazdevl/sample_project/app/domain/entity`
+  - `github.com/kazdevl/sample_project/app/domain/model`
 - directory path
 ```
 .
@@ -85,20 +105,37 @@ the sample go project
         ├── sample1.go
         └── sample2.go
 ```
-
-If you want to group packages under `app/domain` in the result image of `prelviz`, specify `app/domain` in `grouping_directory_path` of `.prelviz.config.json`.
-
+- config before setting `grouping_directory_path`
 ```json
 {
-    "ng_relation": [
-      {
-        "from": "github.com/kazdevl/sample_project/app/usecase",
-        "to": ["github.com/kazdevl/sample_project/app/domain"]
-      }
-    ],
-    "grouping_directory_path": ["app/domain"]
+  "ng_relation": [
+    {
+      "from": "github.com/kazdevl/sample_project/app/usecase",
+      "to": ["github.com/kazdevl/sample_project/app/domain/model"]
+    }
+  ]
+}
+``` 
+
+In the above situation, when setting the `grouping_directory_path`, you need to modify the config as follows
+```json
+{
+  "ng_relation": [
+    {
+      "from": "github.com/kazdevl/sample_project/app/usecase",
+      "to": ["github.com/kazdevl/sample_project/app/domain"]
+    }
+  ],
+  "grouping_directory_path": ["app/domain"]
 }
 ```
+`to` value is `github.com/kazdevl/sample_project/app/domain`, not `github.com/kazdevl/sample_project/app/domain/model`.
+![png](images/4.png)
+
+
+### Recomendation
+If you try to use `prelviz` to the go project that have a lot of packages, it is recommended to set `grouping_directory_path` and `exclude_package` in `.prelviz.config.json`.
+Otherwise, when the output is converted to an image, the number of elements is too large and visibility is catastrophic.
 
 ### Flags
 ```
@@ -109,6 +146,19 @@ If you want to group packages under `app/domain` in the result image of `prelviz
   -o string
         requreid: "false", description: "output file path(default is stdout)"
 ```
+
+## Prelviz Image Description
+- color of node indicates node type
+  - `blue`: package
+  - `green`: directory
+- color of edge indicates dependency type
+  - `white`: default
+  - `red`: architecture violation
+- `pkg` in blue node indicates package name
+- `pkg` in green node indicates the number of packages under the node
+- `path` in blue node indicates directory path that package exists
+- `path` in green node indicates directory path
+- `dep` on edge indicates number of dependencies on structures, functions, etc. of the package to which the arrow points
 
 ## Example
 The result of using `prelviz` to [pipecd](https://github.com/pipe-cd/pipecd) with the following `.prelviz.config.json` settings.
@@ -144,10 +194,10 @@ The result of using `prelviz` to [pipecd](https://github.com/pipe-cd/pipecd) wit
 ```
 
 ### dot layout is `dot`
-![png](images/4.png)
+![png](images/6.png)
 
 ### dot layout is `circo`
-![png](images/5.png)
+![png](images/7.png)
 
 ## Contributing
 Welcome to contribute to this project.

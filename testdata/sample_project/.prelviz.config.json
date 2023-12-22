@@ -5,5 +5,9 @@
             "to": ["github.com/kazdevl/sample_project/app/domain"]
         }
     ],
-    "grouping_directory_path": ["app/domain"]
+    "grouping_directory_path": ["app/domain"],
+    "exclude_package": [
+        "github.com/kazdevl/sample_project/app/util",
+        "github.com/kazdevl/sample_project/app/domain/entity"
+    ]
 }

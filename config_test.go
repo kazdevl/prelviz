@@ -16,27 +16,15 @@ func TestNewConfig(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "anomaly: duplicate in grouping_directory_path",
-			args: args{
-				path: "testdata/config_test/duplicate",
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "anomaly: parent-children relation path exists in grouping_directory_path",
-			args: args{
-				path: "testdata/config_test/paretchildrelation",
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
 			name: "normal: .prelviz.config.json do not exists",
 			args: args{
 				path: "not/exists",
 			},
-			want:    nil,
+			want: &Config{
+				NgRelationMap:          make(map[string]map[string]struct{}),
+				GroupingDirectoryPaths: make([]string, 0),
+				ExcludePackageMap:      make(map[string]struct{}),
+			},
 			wantErr: false,
 		},
 		{
@@ -45,17 +33,12 @@ func TestNewConfig(t *testing.T) {
 				path: "testdata/config_test/valid",
 			},
 			want: &Config{
-				NgRelations: []NgRelation{
-					{
-						From: "sample1",
-						To:   []string{"sample2", "sample3"},
-					},
-					{
-						From: "sample2",
-						To:   []string{"sample3"},
-					},
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample2": {}, "sample3": {}},
+					"sample2": {"sample3": {}},
 				},
 				GroupingDirectoryPaths: []string{"sample4", "sample5", "sample6"},
+				ExcludePackageMap:      map[string]struct{}{"sample7": {}, "sample8": {}, "sample9": {}},
 			},
 			wantErr: false,
 		},
@@ -69,6 +52,212 @@ func TestNewConfig(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NewConfig() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfigBinder_ToConfig(t *testing.T) {
+	type fields struct {
+		NgRelations            []NgRelation
+		GroupingDirectoryPaths []string
+		ExcludePackages        []string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		want    *Config
+		wantErr bool
+	}{
+		{
+			name: "anomaly: parent-children relation path exists in grouping_directory_path",
+			fields: fields{
+				GroupingDirectoryPaths: []string{"sample1", "sample1/sample2"},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "normal: duplicate in grouping_directory_path",
+			fields: fields{
+				GroupingDirectoryPaths: []string{"sample1", "sample1", "sample2"},
+			},
+			want: &Config{
+				NgRelationMap:          make(map[string]map[string]struct{}),
+				GroupingDirectoryPaths: []string{"sample1", "sample2"},
+				ExcludePackageMap:      make(map[string]struct{}),
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal: ng_relation is nil",
+			fields: fields{
+				NgRelations:            nil,
+				GroupingDirectoryPaths: []string{"sample1", "sample2"},
+				ExcludePackages:        []string{"sample3", "sample4"},
+			},
+			want: &Config{
+				NgRelationMap:          make(map[string]map[string]struct{}),
+				GroupingDirectoryPaths: []string{"sample1", "sample2"},
+				ExcludePackageMap:      map[string]struct{}{"sample3": {}, "sample4": {}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal: ng_relation is not set",
+			fields: fields{
+				NgRelations:            []NgRelation{},
+				GroupingDirectoryPaths: []string{"sample1", "sample2"},
+				ExcludePackages:        []string{"sample3", "sample4"},
+			},
+			want: &Config{
+				NgRelationMap:          make(map[string]map[string]struct{}),
+				GroupingDirectoryPaths: []string{"sample1", "sample2"},
+				ExcludePackageMap:      map[string]struct{}{"sample3": {}, "sample4": {}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal: grouping_directory_path is nil",
+			fields: fields{
+				NgRelations: []NgRelation{
+					{
+						From: "sample1",
+						To:   []string{"sample2", "sample3"},
+					},
+				},
+				GroupingDirectoryPaths: nil,
+				ExcludePackages:        []string{"sample3", "sample4"},
+			},
+			want: &Config{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample2": {}, "sample3": {}},
+				},
+				GroupingDirectoryPaths: make([]string, 0),
+				ExcludePackageMap:      map[string]struct{}{"sample3": {}, "sample4": {}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal: grouping_directory_path is not set",
+			fields: fields{
+				NgRelations: []NgRelation{
+					{
+						From: "sample1",
+						To:   []string{"sample2", "sample3"},
+					},
+				},
+				GroupingDirectoryPaths: []string{},
+				ExcludePackages:        []string{"sample3", "sample4"},
+			},
+			want: &Config{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample2": {}, "sample3": {}},
+				},
+				GroupingDirectoryPaths: make([]string, 0),
+				ExcludePackageMap:      map[string]struct{}{"sample3": {}, "sample4": {}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal: grouping_directory_path is empty str slice",
+			fields: fields{
+				NgRelations: []NgRelation{
+					{
+						From: "sample1",
+						To:   []string{"sample2", "sample3"},
+					},
+				},
+				GroupingDirectoryPaths: []string{"", ""},
+				ExcludePackages:        []string{"sample3", "sample4"},
+			},
+			want: &Config{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample2": {}, "sample3": {}},
+				},
+				GroupingDirectoryPaths: []string{""},
+				ExcludePackageMap:      map[string]struct{}{"sample3": {}, "sample4": {}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal: exclude_package is nil",
+			fields: fields{
+				NgRelations: []NgRelation{
+					{
+						From: "sample1",
+						To:   []string{"sample2", "sample3"},
+					},
+				},
+				GroupingDirectoryPaths: []string{"sample4", "sample5"},
+				ExcludePackages:        nil,
+			},
+			want: &Config{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample2": {}, "sample3": {}},
+				},
+				GroupingDirectoryPaths: []string{"sample4", "sample5"},
+				ExcludePackageMap:      make(map[string]struct{}),
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal: exclude_package is not set",
+			fields: fields{
+				NgRelations: []NgRelation{
+					{
+						From: "sample1",
+						To:   []string{"sample2", "sample3"},
+					},
+				},
+				GroupingDirectoryPaths: []string{"sample4", "sample5"},
+				ExcludePackages:        []string{},
+			},
+			want: &Config{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample2": {}, "sample3": {}},
+				},
+				GroupingDirectoryPaths: []string{"sample4", "sample5"},
+				ExcludePackageMap:      make(map[string]struct{}),
+			},
+			wantErr: false,
+		},
+		{
+			name: "normal: exclude_package is empty str slice",
+			fields: fields{
+				NgRelations: []NgRelation{
+					{
+						From: "sample1",
+						To:   []string{"sample2", "sample3"},
+					},
+				},
+				GroupingDirectoryPaths: []string{"sample4", "sample5"},
+				ExcludePackages:        []string{"", ""},
+			},
+			want: &Config{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample2": {}, "sample3": {}},
+				},
+				GroupingDirectoryPaths: []string{"sample4", "sample5"},
+				ExcludePackageMap:      make(map[string]struct{}),
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ConfigBinder{
+				NgRelations:            tt.fields.NgRelations,
+				GroupingDirectoryPaths: tt.fields.GroupingDirectoryPaths,
+				ExcludePackages:        tt.fields.ExcludePackages,
+			}
+			got, err := c.ToConfig()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ToConfig() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ToConfig() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -88,9 +277,9 @@ func TestConfig_IsGroupingPackage(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "normal: GroupingDirectoryPaths is nil",
+			name: "normal: GroupingDirectoryPaths is empty slice",
 			fields: fields{
-				GroupingDirectoryPaths: nil,
+				GroupingDirectoryPaths: []string{},
 			},
 			args: args{
 				pkgDirPath: "app/sample",
@@ -101,16 +290,6 @@ func TestConfig_IsGroupingPackage(t *testing.T) {
 			name: "normal: empty string in GroupingDirectoryPaths",
 			fields: fields{
 				GroupingDirectoryPaths: []string{""},
-			},
-			args: args{
-				pkgDirPath: "app/sample",
-			},
-			want: false,
-		},
-		{
-			name: "normal: multiple empty string in GroupingDirectoryPaths",
-			fields: fields{
-				GroupingDirectoryPaths: []string{"", "", ""},
 			},
 			args: args{
 				pkgDirPath: "app/sample",
@@ -164,9 +343,9 @@ func TestConfig_GroupingPackageDirectoryPath(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "normal: GroupingDirectoryPaths is nil",
+			name: "normal: GroupingDirectoryPaths is empty slice",
 			fields: fields{
-				GroupingDirectoryPaths: nil,
+				GroupingDirectoryPaths: []string{},
 			},
 			args: args{
 				pkgDirPath: "app/sample",
@@ -177,16 +356,6 @@ func TestConfig_GroupingPackageDirectoryPath(t *testing.T) {
 			name: "normal: empty string in GroupingDirectoryPaths",
 			fields: fields{
 				GroupingDirectoryPaths: []string{""},
-			},
-			args: args{
-				pkgDirPath: "app/sample",
-			},
-			want: "app/sample",
-		},
-		{
-			name: "normal: multiple empty string in GroupingDirectoryPaths",
-			fields: fields{
-				GroupingDirectoryPaths: []string{"", "", ""},
 			},
 			args: args{
 				pkgDirPath: "app/sample",
@@ -226,106 +395,122 @@ func TestConfig_GroupingPackageDirectoryPath(t *testing.T) {
 	}
 }
 
-func TestConfig_ToToNgPackageRelationMap(t *testing.T) {
+func TestConfig_IsExcludePackage(t *testing.T) {
 	type fields struct {
-		NgRelations []NgRelation
+		ExcludePackageMap map[string]struct{}
+	}
+	type args struct {
+		pkg string
 	}
 	tests := []struct {
 		name   string
 		fields fields
-		want   NgPackageRelationMap
+		args   args
+		want   bool
 	}{
 		{
-			name: "normal: NgRelations is nil",
+			name: "normal: ExcludePackageMap is empty map",
 			fields: fields{
-				NgRelations: nil,
+				ExcludePackageMap: make(map[string]struct{}),
 			},
-			want: nil,
+			args: args{
+				pkg: "github.com/sample_project/app/sample",
+			},
+			want: false,
 		},
 		{
-			name: "normal: NgRelations is empty",
+			name: "normal: input value do not exists in ExcludePackageMap",
 			fields: fields{
-				NgRelations: []NgRelation{},
-			},
-			want: NgPackageRelationMap{},
-		},
-		{
-			name: "normal",
-			fields: fields{
-				NgRelations: []NgRelation{
-					{
-						From: "sample1",
-						To:   []string{"sample2", "sample3"},
-					},
-					{
-						From: "sample2",
-						To:   []string{"sample3"},
-					},
+				ExcludePackageMap: map[string]struct{}{
+					"github.com/sample_project/app/sample/hoge": {},
 				},
 			},
-			want: NgPackageRelationMap{
-				"sample1": {"sample2": {}, "sample3": {}},
-				"sample2": {"sample3": {}},
+			args: args{
+				pkg: "github.com/sample_project/app/sample",
 			},
+			want: false,
+		},
+		{
+			name: "normal: input value exists in ExcludePackageMap",
+			fields: fields{
+				ExcludePackageMap: map[string]struct{}{
+					"github.com/sample_project/app/sample": {},
+				},
+			},
+			args: args{
+				pkg: "github.com/sample_project/app/sample",
+			},
+			want: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Config{
-				NgRelations: tt.fields.NgRelations,
+				ExcludePackageMap: tt.fields.ExcludePackageMap,
 			}
-			if got := c.ToNgPackageRelationMap(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Config.ToNgPackageRelationMap() = %v, want %v", got, tt.want)
+			if got := c.IsExcludePackage(tt.args.pkg); got != tt.want {
+				t.Errorf("IsExcludePackage() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestNgPackageRelationMap_IsNgRelation(t *testing.T) {
-	type field struct {
-		ngPackageRelationMap NgPackageRelationMap
+func TestConfig_IsNgRelation(t *testing.T) {
+	type fields struct {
+		NgRelationMap map[string]map[string]struct{}
 	}
 	type args struct {
 		from string
 		to   string
 	}
 	tests := []struct {
-		name  string
-		field field
-		args  args
-		want  bool
+		name   string
+		fields fields
+		args   args
+		want   bool
 	}{
 		{
-			name: "normal: from's value do not exists",
-			field: field{
-				ngPackageRelationMap: NgPackageRelationMap{
-					"sample1": {"sample2": {}, "sample3": {}},
-				},
+			name: "normal: NgRelationMap is empty map",
+			fields: fields{
+				NgRelationMap: make(map[string]map[string]struct{}),
 			},
 			args: args{
-				from: "sample4",
+				from: "sample1",
 				to:   "sample2",
 			},
 			want: false,
 		},
 		{
-			name: "normal: to's value do not exists",
-			field: field{
-				ngPackageRelationMap: NgPackageRelationMap{
-					"sample1": {"sample2": {}, "sample3": {}},
+			name: "normal: from do not exists",
+			fields: fields{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample_hoge": {"sample_hoge": {}},
 				},
 			},
 			args: args{
 				from: "sample1",
-				to:   "sample4",
+				to:   "sample2",
 			},
 			want: false,
 		},
 		{
-			name: "normal: from's value and to's value exists",
-			field: field{
-				ngPackageRelationMap: NgPackageRelationMap{
-					"sample1": {"sample2": {}, "sample3": {}},
+			name: "normal: to do not exists",
+			fields: fields{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample_hoge": {}},
+				},
+			},
+			args: args{
+				from: "sample1",
+				to:   "sample2",
+			},
+			want: false,
+		},
+		{
+			name: "normal: from exists, to exists",
+			fields: fields{
+				NgRelationMap: map[string]map[string]struct{}{
+					"sample1": {"sample2": {}},
 				},
 			},
 			args: args{
@@ -337,9 +522,11 @@ func TestNgPackageRelationMap_IsNgRelation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			n := NgPackageRelationMap(tt.field.ngPackageRelationMap)
-			if got := n.IsNgRelation(tt.args.from, tt.args.to); got != tt.want {
-				t.Errorf("NgPackageRelationMap.IsNgRelation() = %v, want %v", got, tt.want)
+			c := &Config{
+				NgRelationMap: tt.fields.NgRelationMap,
+			}
+			if got := c.IsNgRelation(tt.args.from, tt.args.to); got != tt.want {
+				t.Errorf("IsNgRelation() = %v, want %v", got, tt.want)
 			}
 		})
 	}

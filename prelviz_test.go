@@ -73,10 +73,12 @@ func TestPrelviz_nodeName(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "normal: config is nil",
+			name: "normal: config.GroupingDirectoryPaths is empty slice",
 			fields: fields{
 				projectModuleName: "mod",
-				config:            nil,
+				config: &Config{
+					GroupingDirectoryPaths: []string{},
+				},
 			},
 			args: args{
 				pkgDirPath: "sample/hoge",
@@ -122,106 +124,6 @@ func TestPrelviz_nodeName(t *testing.T) {
 			}
 			if got := m.nodeName(tt.args.pkgDirPath); got != tt.want {
 				t.Errorf("Prelviz.nodeName() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestPrelviz_isNgRelation(t *testing.T) {
-	type fields struct {
-		config *Config
-	}
-	type args struct {
-		from string
-		to   string
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   bool
-	}{
-		{
-			name: "normal: config is nil",
-			fields: fields{
-				config: nil,
-			},
-			args: args{
-				from: "from",
-				to:   "to",
-			},
-			want: false,
-		},
-		{
-			name: "normal: ngPackageRelationMap is nil",
-			fields: fields{
-				config: &Config{
-					NgRelations: nil,
-				},
-			},
-			args: args{
-				from: "from",
-				to:   "to",
-			},
-			want: false,
-		},
-		{
-			name: "normal: ngPackageRelationMap is zero value",
-			fields: fields{
-				config: &Config{
-					NgRelations: []NgRelation{},
-				},
-			},
-			args: args{
-				from: "from",
-				to:   "to",
-			},
-			want: false,
-		},
-		{
-			name: "normal: not ng relation",
-			fields: fields{
-				config: &Config{
-					NgRelations: []NgRelation{
-						{
-							From: "from_",
-							To:   []string{"to_"},
-						},
-					},
-				},
-			},
-			args: args{
-				from: "from",
-				to:   "to",
-			},
-			want: false,
-		},
-		{
-			name: "normal: ng relation",
-			fields: fields{
-				config: &Config{
-					NgRelations: []NgRelation{
-						{
-							From: "from",
-							To:   []string{"to"},
-						},
-					},
-				},
-			},
-			args: args{
-				from: "from",
-				to:   "to",
-			},
-			want: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := &Prelviz{
-				config: tt.fields.config,
-			}
-			if got := m.isNgRelation(tt.args.from, tt.args.to); got != tt.want {
-				t.Errorf("Prelviz.isNgRelation() = %v, want %v", got, tt.want)
 			}
 		})
 	}

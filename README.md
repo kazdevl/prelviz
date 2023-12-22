@@ -44,7 +44,7 @@ If `prelviz` detects architecture violation, the color of edges between the targ
     "ng_relation": [
         {
             "from": "github.com/kazdevl/sample_project/app/usecase",
-            "to": ["github.com/kazdevl/sample_project/app/domain"]
+            "to": ["github.com/kazdevl/sample_project/app/domain/model"]
         }
     ],
 }
@@ -91,7 +91,10 @@ If you want to group packages under `app/domain` in the result image of `prelviz
 ```json
 {
     "ng_relation": [
-        ...
+      {
+        "from": "github.com/kazdevl/sample_project/app/usecase",
+        "to": ["github.com/kazdevl/sample_project/app/domain"]
+      }
     ],
     "grouping_directory_path": ["app/domain"]
 }

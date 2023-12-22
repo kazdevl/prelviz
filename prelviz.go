@@ -19,7 +19,14 @@ type Prelviz struct {
 	dotLayout         string
 }
 
-func NewRelviz(projectDirectoryPath, outputFilePath, dotLayout string) (*Prelviz, error) {
+type NodeInfo struct {
+	Name                  string
+	DirectoryPath         string
+	groupingDirectoryPath string
+	ContainsPackageNum    int
+}
+
+func NewPrelviz(projectDirectoryPath, outputFilePath, dotLayout string) (*Prelviz, error) {
 	config, err := NewConfig(projectDirectoryPath)
 	if err != nil {
 		return nil, err
@@ -55,6 +62,7 @@ func NewRelviz(projectDirectoryPath, outputFilePath, dotLayout string) (*Prelviz
 }
 
 func (m *Prelviz) Run() error {
+	// add graph
 	var (
 		graphDefaultAttrs = map[string]string{
 			"charset":   `"UTF-8"`,
@@ -70,14 +78,13 @@ func (m *Prelviz) Run() error {
 			"layout":    fmt.Sprintf(`"%s"`, m.dotLayout),
 		}
 		nodeDefaultAttrs = map[string]string{
+			"shape":       `"record"`,
 			"style":       `"solid,filled"`,
 			"fontcolor":   "6",
 			"fontsize":    "14",
-			"color":       "7",
 			"colorscheme": `"spectral11"`,
 		}
 	)
-
 	graphAst, _ := gographviz.ParseString(`digraph d {}`)
 	graph := gographviz.NewGraph()
 	if err := gographviz.Analyse(graphAst, graph); err != nil {
@@ -89,32 +96,17 @@ func (m *Prelviz) Run() error {
 	}
 	graph.Attrs.Extend(graphAttrs)
 
-	nodeRelationCountMap := make(map[string]int)
-	for pkgDirPath, info := range m.packageInfoMap {
-		nodeName := m.nodeName(pkgDirPath)
-		for importPath, usageMap := range info.ImportUsageMap {
-			if !m.isTargetPackage(importPath) {
+	// add node
+	for nodeName, info := range m.nodeInfoMap() {
+		if info.isGroupingNode() {
+			if graph.IsNode(nodeName) {
 				continue
 			}
-			importPathNodeName := m.importPathNodeName(importPath)
-			if importPathNodeName == nodeName {
-				continue
-			}
-			nodeRelationCountMap[nodeName+importPathNodeName] += len(usageMap)
-		}
-	}
-
-	nodeEdgeMap := make(map[string]struct{})
-	for pkgDirPath, info := range m.packageInfoMap {
-		nodeName := m.nodeName(pkgDirPath)
-		// Add node
-		if m.isGroupingNode(pkgDirPath) {
 			if err = graph.AddNode("G", m.toDotLangFormat(nodeName), lo.Assign(
 				nodeDefaultAttrs,
 				map[string]string{
-					"shape":     `"folder"`,
 					"fillcolor": "9",
-					"label":     fmt.Sprintf(`"path: %s"`, m.groupingPackageDirectoryPath(pkgDirPath)),
+					"label":     fmt.Sprintf(`"{path: %s|pkgNum: %d}"`, info.DirectoryPath, info.ContainsPackageNum),
 				},
 			)); err != nil {
 				return err
@@ -123,7 +115,6 @@ func (m *Prelviz) Run() error {
 			if err = graph.AddNode("G", m.toDotLangFormat(nodeName), lo.Assign(
 				nodeDefaultAttrs,
 				map[string]string{
-					"shape":     `"record"`,
 					"fillcolor": "10",
 					"label":     fmt.Sprintf(`"{pkg: %s|path: %s}"`, info.Name, info.DirectoryPath),
 				},
@@ -131,22 +122,13 @@ func (m *Prelviz) Run() error {
 				return err
 			}
 		}
+	}
 
-		// Add edge
-		for importPath := range info.ImportUsageMap {
-			importPathNodeName := m.importPathNodeName(importPath)
-			relationNum, ok := nodeRelationCountMap[nodeName+importPathNodeName]
-			if !ok {
-				continue
-			}
-			if _, ok := nodeEdgeMap[nodeName+importPathNodeName]; ok {
-				continue
-			} else {
-				nodeEdgeMap[nodeName+importPathNodeName] = struct{}{}
-			}
-
-			if m.isNgRelation(nodeName, importPathNodeName) {
-				if err = graph.AddEdge(m.toDotLangFormat(nodeName), m.toDotLangFormat(importPathNodeName), true, map[string]string{
+	// add edge
+	for srcNodeName, relationMap := range m.nodeRelationCountMap() {
+		for dstNodeName, relationNum := range relationMap {
+			if m.isNgRelation(srcNodeName, dstNodeName) {
+				if err = graph.AddEdge(m.toDotLangFormat(srcNodeName), m.toDotLangFormat(dstNodeName), true, map[string]string{
 					"color":     `"red"`,
 					"weight":    fmt.Sprintf(`"%d"`, relationNum),
 					"label":     fmt.Sprintf(`"dep:%d"`, relationNum),
@@ -156,7 +138,7 @@ func (m *Prelviz) Run() error {
 					return err
 				}
 			} else {
-				if err = graph.AddEdge(m.toDotLangFormat(nodeName), m.toDotLangFormat(importPathNodeName), true, map[string]string{
+				if err = graph.AddEdge(m.toDotLangFormat(srcNodeName), m.toDotLangFormat(dstNodeName), true, map[string]string{
 					"color":     `"white"`,
 					"weight":    fmt.Sprintf(`"%d"`, relationNum),
 					"label":     fmt.Sprintf(`"dep:%d"`, relationNum),
@@ -169,10 +151,59 @@ func (m *Prelviz) Run() error {
 		}
 	}
 
-	if _, err := fmt.Fprint(m.output, graph.String()); err != nil {
+	if _, err = fmt.Fprint(m.output, graph.String()); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (m *Prelviz) nodeRelationCountMap() map[string]map[string]int {
+	nodeRelationCountMap := make(map[string]map[string]int)
+	for pkgDirPath, info := range m.packageInfoMap {
+		if m.isExcludePackage(pkgDirPath) {
+			continue
+		}
+
+		nodeName := m.nodeName(pkgDirPath)
+		for importPath, usageMap := range info.ImportUsageMap {
+			if !m.isTargetPackage(importPath) {
+				continue
+			}
+			importPathNodeName := m.importPathNodeName(importPath)
+			if importPathNodeName == nodeName {
+				continue
+			}
+
+			if _, ok := nodeRelationCountMap[nodeName]; !ok {
+				nodeRelationCountMap[nodeName] = map[string]int{
+					importPathNodeName: len(usageMap),
+				}
+			} else {
+				nodeRelationCountMap[nodeName][importPathNodeName] += len(usageMap)
+			}
+		}
+	}
+	return nodeRelationCountMap
+}
+
+func (m *Prelviz) nodeInfoMap() map[string]*NodeInfo {
+	nodeInfoMap := make(map[string]*NodeInfo)
+	for pkgDirPath, info := range m.packageInfoMap {
+		if m.isExcludePackage(pkgDirPath) {
+			continue
+		}
+
+		nodeName := m.nodeName(pkgDirPath)
+		if _, ok := nodeInfoMap[nodeName]; ok {
+			nodeInfoMap[nodeName].ContainsPackageNum++
+		} else {
+			nodeInfoMap[nodeName] = &NodeInfo{
+				Name:          info.Name,
+				DirectoryPath: m.groupingPackageDirectoryPath(pkgDirPath),
+			}
+		}
+	}
+	return nodeInfoMap
 }
 
 func (m *Prelviz) importPathNodeName(importPath string) string {
@@ -189,17 +220,11 @@ func (m *Prelviz) isGroupingNode(pkgDirPath string) bool {
 }
 
 func (m *Prelviz) groupingPackageDirectoryPath(pkgDirPath string) string {
-	if m.config == nil {
-		return pkgDirPath
-	}
 	return m.config.GroupingPackageDirectoryPath(pkgDirPath)
 }
 
 func (m *Prelviz) nodeName(pkgDirPath string) string {
 	nodeName := filepath.Join(m.projectModuleName, pkgDirPath)
-	if m.config == nil {
-		return nodeName
-	}
 	if m.config.IsGroupingPackage(pkgDirPath) {
 		return filepath.Join(m.projectModuleName, m.config.GroupingPackageDirectoryPath(pkgDirPath))
 	}
@@ -216,12 +241,14 @@ func (m *Prelviz) toDotLangFormat(in string) string {
 }
 
 func (m *Prelviz) isNgRelation(from, to string) bool {
-	if m.config == nil {
-		return false
-	}
-	ngPackageRelationMap := m.config.ToNgPackageRelationMap()
-	if ngPackageRelationMap == nil {
-		return false
-	}
-	return ngPackageRelationMap.IsNgRelation(from, to)
+	return m.config.IsNgRelation(from, to)
+}
+
+func (m *Prelviz) isExcludePackage(pkgDirPath string) bool {
+	pkg := filepath.Join(m.projectModuleName, pkgDirPath)
+	return m.config.IsExcludePackage(pkg)
+}
+
+func (m *NodeInfo) isGroupingNode() bool {
+	return m.ContainsPackageNum > 0
 }

@@ -28,13 +28,13 @@ $ prelviz -i {{project directory path}} -o {{output file path}}
 ```
 
 ```bash
-$ prelviz -i {{project directory path}} | dot -Tpng -o sample.png
+$ prelviz -i {{project directory path}} | dot -Tsvg -o sample.svg
 ```
 NOTE: if you want to exec above usage, you need to install [graphviz](https://www.graphviz.org/).
 
 ### Use with config
 If you want to use `prelviz` with config, you need to create `.prelviz.config.json` in project directory path.
-`.prelviz.config.json` have three fields, `ng_relation`, `grouping_grouping_directory_path` and `exclude_package`.
+`.prelviz.config.json` have four fields, `ng_relation`, `grouping_grouping_directory_path`, `exclude_package` and `exclude_directory_path`.
 
 example)
 
@@ -46,11 +46,12 @@ example)
       "to": ["github.com/kazdevl/sample_project/app/domain"]
     }
   ],
-  "grouping_directory_path": ["app/domain"], 
+  "grouping_directory_path": ["app/domain"],
   "exclude_package": [
     "github.com/kazdevl/sample_project/app/util",
     "github.com/kazdevl/sample_project/app/domain/entity"
-  ]
+  ],
+  "exclude_directory_path": ["github.com/kazdevl/sample_project/app/exclude"]
 }
 ```
 
@@ -75,6 +76,9 @@ When you set `exclude_package` value, you have to set package path.
 example)
 
 ![png](images/5.png)
+
+You can set `exclude_directory_path` when you want to **exclude packages in target directoies in the result image of `prelviz`**.
+When you set `exclude_directory_path` value, you have to set directory path.
 
 ### Point
 The values in `grouping_directory_path` are treated as package, so it must also be considered when setting `ng_relation`.
@@ -120,7 +124,7 @@ the sample go project
     }
   ]
 }
-``` 
+```
 
 In the above situation, when setting the `grouping_directory_path`, you need to modify the config as follows
 ```json
@@ -139,7 +143,7 @@ In the above situation, when setting the `grouping_directory_path`, you need to 
 
 
 ### Recomendation
-If you try to use `prelviz` to the go project that have a lot of packages, it is recommended to set `grouping_directory_path` and `exclude_package` in `.prelviz.config.json`.
+If you try to use `prelviz` to the go project that have a lot of packages, it is recommended to set `grouping_directory_path` and `exclude_directory_path` in `.prelviz.config.json`.
 Otherwise, when the output is converted to an image, the number of elements is too large and visibility is catastrophic.
 
 ### Flags

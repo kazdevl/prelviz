@@ -10,7 +10,7 @@ This tool help you to understand self custom package relation and maintain proje
 You can get `prelviz` by `go install` command.
 
 ```bash
-$ go install github.com/kazdevl/prelviz/cmd/prelviz@v1.0.1
+$ go install github.com/kazdevl/prelviz/cmd/prelviz@v1.1.0
 ```
 NOTE: you need go 1.21 or later.
 

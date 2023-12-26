@@ -14,6 +14,7 @@ type ConfigBinder struct {
 	NgRelations            []NgRelation `json:"ng_relation"`
 	GroupingDirectoryPaths []string     `json:"grouping_directory_path"`
 	ExcludePackages        []string     `json:"exclude_package"`
+	ExcludeDirectorys      []string     `json:"exclude_directory"`
 }
 
 type Config struct {
@@ -29,7 +30,7 @@ type NgRelation struct {
 
 const configJsonName = ".prelviz.config.json"
 
-func NewConfig(path string) (*Config, error) {
+func NewConfig(path, moduleName string) (*Config, error) {
 	filePath := filepath.Join(path, configJsonName)
 	if !fileExists(filePath) {
 		return &Config{
@@ -48,14 +49,14 @@ func NewConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	c, err := cb.ToConfig()
+	c, err := cb.ToConfig(moduleName)
 	if err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-func (c ConfigBinder) ToConfig() (*Config, error) {
+func (c ConfigBinder) ToConfig(moduleName string) (*Config, error) {
 	conf := &Config{
 		NgRelationMap:          make(map[string]map[string]struct{}),
 		GroupingDirectoryPaths: make([]string, 0),
@@ -84,6 +85,19 @@ func (c ConfigBinder) ToConfig() (*Config, error) {
 			m[excludePackage] = struct{}{}
 		}
 		conf.ExcludePackageMap = m
+	}
+
+	if c.ExcludeDirectorys != nil {
+		for _, dir := range c.ExcludeDirectorys {
+			if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+				if info.IsDir() {
+					conf.ExcludePackageMap[filepath.Join(moduleName, path)] = struct{}{}
+				}
+				return nil
+			}); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if c.GroupingDirectoryPaths != nil {

@@ -10,5 +10,6 @@
         }
     ],
     "grouping_directory_path": ["sample4", "sample5", "sample6"],
-    "exclude_package": ["sample7", "sample8", "sample9"]
+    "exclude_package": ["mod/exclude/nest1_1/nest2_1","mod/sample7"],
+    "exclude_directory_path": ["exclude/nest1_1"]
 }

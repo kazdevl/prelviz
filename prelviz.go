@@ -27,17 +27,17 @@ type NodeInfo struct {
 }
 
 func NewPrelviz(projectDirectoryPath, outputFilePath, dotLayout string) (*Prelviz, error) {
-	config, err := NewConfig(projectDirectoryPath)
-	if err != nil {
-		return nil, err
-	}
-
-	name, err := GetModuleName(projectDirectoryPath)
+	moduleName, err := GetModuleName(projectDirectoryPath)
 	if err != nil {
 		return nil, err
 	}
 
 	packageInfoMap, err := NewPackageInfoMap(projectDirectoryPath)
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := NewConfig(projectDirectoryPath, moduleName)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func NewPrelviz(projectDirectoryPath, outputFilePath, dotLayout string) (*Prelvi
 	}
 
 	return &Prelviz{
-		projectModuleName: name,
+		projectModuleName: moduleName,
 		packageInfoMap:    packageInfoMap,
 		config:            config,
 		output:            output,

@@ -41,9 +41,9 @@ func TestNewConfig(t *testing.T) {
 				},
 				GroupingDirectoryPaths: []string{"sample4", "sample5", "sample6"},
 				ExcludePackageMap: map[string]struct{}{
-					"mod/sample7": {},
-					"mod/testdata/config_test/valid/exclude/nest1_1":         {},
-					"mod/testdata/config_test/valid/exclude/nest1_1/nest2_1": {},
+					"mod/sample7":                 {},
+					"mod/exclude/nest1_1":         {},
+					"mod/exclude/nest1_1/nest2_1": {},
 				},
 			},
 			wantErr: false,
@@ -71,6 +71,7 @@ func TestConfigBinder_ToConfig(t *testing.T) {
 		ExcludeDirectorys      []string
 	}
 	type args struct {
+		path       string
 		moduleName string
 	}
 	tests := []struct {
@@ -321,19 +322,19 @@ func TestConfigBinder_ToConfig(t *testing.T) {
 				},
 				GroupingDirectoryPaths: []string{"sample4", "sample5"},
 				ExcludePackages:        []string{"mod/sample6", "mod/sample7"},
-				ExcludeDirectorys:      []string{"testdata/config_test/valid/exclude/nest1_1"},
+				ExcludeDirectorys:      []string{"exclude/nest1_1"},
 			},
-			args: args{moduleName: "mod"},
+			args: args{moduleName: "mod", path: "testdata/config_test/valid"},
 			want: &Config{
 				NgRelationMap: map[string]map[string]struct{}{
 					"mod/sample1": {"mod/sample2": {}, "mod/sample3": {}},
 				},
 				GroupingDirectoryPaths: []string{"sample4", "sample5"},
 				ExcludePackageMap: map[string]struct{}{
-					"mod/sample6": {},
-					"mod/sample7": {},
-					"mod/testdata/config_test/valid/exclude/nest1_1":         {},
-					"mod/testdata/config_test/valid/exclude/nest1_1/nest2_1": {},
+					"mod/sample6":                 {},
+					"mod/sample7":                 {},
+					"mod/exclude/nest1_1":         {},
+					"mod/exclude/nest1_1/nest2_1": {},
 				},
 			},
 			wantErr: false,
@@ -348,24 +349,24 @@ func TestConfigBinder_ToConfig(t *testing.T) {
 					},
 				},
 				GroupingDirectoryPaths: []string{"sample4", "sample5"},
-				ExcludePackages:        []string{"mod/testdata/config_test/valid/exclude/nest1_1/nest2_1"},
+				ExcludePackages:        []string{"mod/exclude/nest1_1/nest2_1"},
 				ExcludeDirectorys: []string{
-					"testdata/config_test/valid/exclude/nest1_1",
-					"testdata/config_test/valid/exclude/nest1_2",
+					"exclude/nest1_1",
+					"exclude/nest1_2",
 				},
 			},
-			args: args{moduleName: "mod"},
+			args: args{moduleName: "mod", path: "testdata/config_test/valid"},
 			want: &Config{
 				NgRelationMap: map[string]map[string]struct{}{
 					"mod/sample1": {"mod/sample2": {}, "mod/sample3": {}},
 				},
 				GroupingDirectoryPaths: []string{"sample4", "sample5"},
 				ExcludePackageMap: map[string]struct{}{
-					"mod/testdata/config_test/valid/exclude/nest1_1":         {},
-					"mod/testdata/config_test/valid/exclude/nest1_1/nest2_1": {},
-					"mod/testdata/config_test/valid/exclude/nest1_2":         {},
-					"mod/testdata/config_test/valid/exclude/nest1_2/nest2_1": {},
-					"mod/testdata/config_test/valid/exclude/nest1_2/nest2_2": {},
+					"mod/exclude/nest1_1":         {},
+					"mod/exclude/nest1_1/nest2_1": {},
+					"mod/exclude/nest1_2":         {},
+					"mod/exclude/nest1_2/nest2_1": {},
+					"mod/exclude/nest1_2/nest2_2": {},
 				},
 			},
 			wantErr: false,
@@ -377,15 +378,15 @@ func TestConfigBinder_ToConfig(t *testing.T) {
 				NgRelations:            tt.fields.NgRelations,
 				GroupingDirectoryPaths: tt.fields.GroupingDirectoryPaths,
 				ExcludePackages:        tt.fields.ExcludePackages,
-				ExcludeDirectorys:      tt.fields.ExcludeDirectorys,
+				ExcludeDirectoryPaths:  tt.fields.ExcludeDirectorys,
 			}
-			got, err := c.ToConfig(tt.args.moduleName)
+			got, err := c.ToConfig(tt.args.path, tt.args.moduleName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ToConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ToConfig() got = %v, want %v", got, tt.want)
+				t.Errorf("ToConfig()\ngot=%+v\n\nwant=%+v", got, tt.want)
 			}
 		})
 	}

@@ -14,7 +14,7 @@ type ConfigBinder struct {
 	NgRelations            []NgRelation `json:"ng_relation"`
 	GroupingDirectoryPaths []string     `json:"grouping_directory_path"`
 	ExcludePackages        []string     `json:"exclude_package"`
-	ExcludeDirectorys      []string     `json:"exclude_directory"`
+	ExcludeDirectoryPaths  []string     `json:"exclude_directory_path"`
 }
 
 type Config struct {
@@ -49,14 +49,14 @@ func NewConfig(path, moduleName string) (*Config, error) {
 		return nil, err
 	}
 
-	c, err := cb.ToConfig(moduleName)
+	c, err := cb.ToConfig(path, moduleName)
 	if err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-func (c ConfigBinder) ToConfig(moduleName string) (*Config, error) {
+func (c ConfigBinder) ToConfig(path, moduleName string) (*Config, error) {
 	conf := &Config{
 		NgRelationMap:          make(map[string]map[string]struct{}),
 		GroupingDirectoryPaths: make([]string, 0),
@@ -87,11 +87,19 @@ func (c ConfigBinder) ToConfig(moduleName string) (*Config, error) {
 		conf.ExcludePackageMap = m
 	}
 
-	if c.ExcludeDirectorys != nil {
-		for _, dir := range c.ExcludeDirectorys {
-			if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	if c.ExcludeDirectoryPaths != nil {
+		for _, dir := range c.ExcludeDirectoryPaths {
+			if dir == "" {
+				continue
+			}
+			dirPathFromTool := filepath.Join(path, dir)
+			if err := filepath.Walk(dirPathFromTool, func(nowPath string, info os.FileInfo, err error) error {
+				if info == nil {
+					return nil
+				}
+				dirPathFromProjectRoot := strings.TrimPrefix(nowPath, path)
 				if info.IsDir() {
-					conf.ExcludePackageMap[filepath.Join(moduleName, path)] = struct{}{}
+					conf.ExcludePackageMap[filepath.Join(moduleName, dirPathFromProjectRoot)] = struct{}{}
 				}
 				return nil
 			}); err != nil {

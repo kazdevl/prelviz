@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -86,7 +87,7 @@ func (m *Prelviz) Run() error {
 			"colorscheme": `"spectral11"`,
 		}
 	)
-	graphAst, _ := gographviz.ParseString(`digraph d {}`)
+	graphAst, _ := gographviz.ParseString(`digraph G {}`)
 	graph := gographviz.NewGraph()
 	if err := gographviz.Analyse(graphAst, graph); err != nil {
 		return err
@@ -126,29 +127,47 @@ func (m *Prelviz) Run() error {
 	}
 
 	// add edge
-	for srcNodeName, relationMap := range m.nodeRelationCountMap() {
-		for dstNodeName, relationNum := range relationMap {
-			if m.isNgRelation(srcNodeName, dstNodeName) {
-				if err = graph.AddEdge(m.toDotLangFormat(srcNodeName), m.toDotLangFormat(dstNodeName), true, map[string]string{
-					"color":     `"red"`,
-					"weight":    fmt.Sprintf(`"%d"`, relationNum),
-					"label":     fmt.Sprintf(`"dep:%d"`, relationNum),
-					"fontcolor": `"white"`,
-					"decorate":  `"true"`,
-				}); err != nil {
-					return err
-				}
-			} else {
-				if err = graph.AddEdge(m.toDotLangFormat(srcNodeName), m.toDotLangFormat(dstNodeName), true, map[string]string{
-					"color":     `"white"`,
-					"weight":    fmt.Sprintf(`"%d"`, relationNum),
-					"label":     fmt.Sprintf(`"dep:%d"`, relationNum),
-					"fontcolor": `"white"`,
-					"decorate":  `"true"`,
-				}); err != nil {
-					return err
+	for _, nodeRelationCountInfo := range m.nodeRelationCountMapList() {
+		for srcNodeName, relationMap := range nodeRelationCountInfo.countMap {
+			for dstNodeName, relationNum := range relationMap {
+				if m.isNgRelation(srcNodeName, dstNodeName) {
+					if err = graph.AddEdge(m.toDotLangFormat(srcNodeName), m.toDotLangFormat(dstNodeName), true, map[string]string{
+						"color":     `"red"`,
+						"weight":    fmt.Sprintf(`"%d"`, relationNum),
+						"label":     fmt.Sprintf(`"dep:%d"`, relationNum),
+						"fontcolor": `"white"`,
+						"decorate":  `"true"`,
+					}); err != nil {
+						return err
+					}
+				} else {
+					if err = graph.AddEdge(m.toDotLangFormat(srcNodeName), m.toDotLangFormat(dstNodeName), true, map[string]string{
+						"color":     `"white"`,
+						"weight":    fmt.Sprintf(`"%d"`, relationNum),
+						"label":     fmt.Sprintf(`"dep:%d"`, relationNum),
+						"fontcolor": `"white"`,
+						"decorate":  `"true"`,
+					}); err != nil {
+						return err
+					}
 				}
 			}
+		}
+	}
+
+	// add rank
+	for i, nodeRanks := range m.nodeRanksList() {
+		subgraphName := fmt.Sprintf(`rank_%d`, i)
+		rankList := strings.Join(lo.Map(nodeRanks, func(v string, _ int) string {
+			return m.toDotLangFormat(v)
+		}), ";")
+		attrValue := fmt.Sprintf(`same; %s`, rankList)
+		if err = graph.AddSubGraph("G", subgraphName,
+			map[string]string{
+				string(gographviz.Rank): attrValue,
+			},
+		); err != nil {
+			return err
 		}
 	}
 
@@ -156,6 +175,26 @@ func (m *Prelviz) Run() error {
 		return err
 	}
 	return nil
+}
+
+func (m *Prelviz) nodeRanksList() [][]string {
+	nodeRankMap := make(map[int][]string)
+	for pkgDirPath := range m.packageInfoMap {
+		if m.isExcludePackageWithDirPath(pkgDirPath) {
+			continue
+		}
+
+		nodeName := m.nodeName(pkgDirPath)
+		nest := strings.Count(nodeName, "/")
+		if _, ok := nodeRankMap[nest]; !ok {
+			nodeRankMap[nest] = []string{nodeName}
+		} else {
+			nodeRankMap[nest] = append(nodeRankMap[nest], nodeName)
+		}
+	}
+	return lo.MapToSlice(nodeRankMap, func(k int, vs []string) []string {
+		return vs
+	})
 }
 
 func (m *Prelviz) nodeInfoMap() map[string]*NodeInfo {
@@ -188,14 +227,20 @@ func (m *Prelviz) nodeInfoMap() map[string]*NodeInfo {
 	return nodeInfoMap
 }
 
-func (m *Prelviz) nodeRelationCountMap() map[string]map[string]int {
-	nodeRelationCountMap := make(map[string]map[string]int)
+type nodeRelationCountInfo struct {
+	nest     int
+	countMap map[string]map[string]int
+}
+
+func (m *Prelviz) nodeRelationCountMapList() []*nodeRelationCountInfo {
+	nodeRelationCountMapWithNest := make(map[int]map[string]map[string]int)
 	for pkgDirPath, info := range m.packageInfoMap {
 		if m.isExcludePackageWithDirPath(pkgDirPath) {
 			continue
 		}
 
 		nodeName := m.nodeName(pkgDirPath)
+		nest := strings.Count(nodeName, "/")
 		for importPath, usageMap := range info.ImportUsageMap {
 			if !m.isTargetPackage(importPath) {
 				continue
@@ -209,16 +254,31 @@ func (m *Prelviz) nodeRelationCountMap() map[string]map[string]int {
 				continue
 			}
 
-			if _, ok := nodeRelationCountMap[nodeName]; !ok {
-				nodeRelationCountMap[nodeName] = map[string]int{
-					importPathNodeName: len(usageMap),
+			if _, ok := nodeRelationCountMapWithNest[nest]; !ok {
+				nodeRelationCountMapWithNest[nest] = map[string]map[string]int{
+					nodeName: {importPathNodeName: len(usageMap)},
 				}
 			} else {
-				nodeRelationCountMap[nodeName][importPathNodeName] += len(usageMap)
+				if _, ok := nodeRelationCountMapWithNest[nest][nodeName]; !ok {
+					nodeRelationCountMapWithNest[nest][nodeName] = map[string]int{
+						importPathNodeName: len(usageMap),
+					}
+				} else {
+					nodeRelationCountMapWithNest[nest][nodeName][importPathNodeName] += len(usageMap)
+				}
 			}
 		}
 	}
-	return nodeRelationCountMap
+	result := lo.MapToSlice(nodeRelationCountMapWithNest, func(k int, v map[string]map[string]int) *nodeRelationCountInfo {
+		return &nodeRelationCountInfo{
+			nest:     k,
+			countMap: v,
+		}
+	})
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].nest < result[j].nest
+	})
+	return result
 }
 
 func (m *Prelviz) importPathNodeName(importPath string) string {
